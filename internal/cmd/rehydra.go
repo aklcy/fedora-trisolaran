@@ -262,6 +262,14 @@ func runRehydra(cmd *cobra.Command, args []string) {
 	// ============================================================================
 	fmt.Println("👤 Step 4/5: Restoring user space...")
 
+	// Declarative and unconditional, like System.Tmpfiles above: no
+	// pipeline placement needed.
+	if len(sess.Blueprint.UserSpace.SystemdUserUnits) > 0 {
+		if err := ops.EnsureSystemdUserUnits(sess.Blueprint.UserSpace.SystemdUserUnits, sess.Blueprint.Identity.Username); err != nil {
+			panic(err)
+		}
+	}
+
 	restoreDehydration := func() {
 		if sess.ArtifactPath != "" {
 			notices, err := artifact.Restore(sess.ArtifactPath, sess.TimeSynced)

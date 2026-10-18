@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/acker1019/fedora-trisolaran/internal/logging"
 	"gopkg.in/yaml.v3"
@@ -133,6 +134,15 @@ type UserSpaceConfig struct {
 	// runs. The Flathub remote itself is added as part of the same step.
 	Flatpaks []string `yaml:"flatpaks"`
 
+	// SystemdUserUnits are systemd --user unit files installed under
+	// ~/.config/systemd/user/ and enabled, run as the target user's own
+	// session (unlike System.Tmpfiles, which is root-owned and applied by
+	// systemd-tmpfiles-setup.service at boot). Declarative and
+	// unconditional, like Tmpfiles: no pipeline placement needed, and kept
+	// as its own field (not a Pipeline script) since unit content is
+	// structured text, not a shell one-liner.
+	SystemdUserUnits []SystemdUserUnitConfig `yaml:"systemd_user_units"`
+
 	// Pipeline is the ordered sequence of Block IV steps, run as the
 	// target user. By default (no step in Pipeline has a Run of
 	// RunDehydration or RunRepos), restoring the artifact and cloning
@@ -193,6 +203,17 @@ type DehydrationConfig struct {
 type RepoConfig struct {
 	URL  string `yaml:"url"`
 	Dest string `yaml:"dest"`
+}
+
+// SystemdUserUnitConfig declares a single systemd --user unit file, its
+// content written verbatim into the blueprint.
+type SystemdUserUnitConfig struct {
+	// Name is the unit's base filename, without a .service suffix (e.g.
+	// "trisolaran-login-cleanup" -> ~/.config/systemd/user/trisolaran-login-cleanup.service).
+	Name string `yaml:"name"`
+	// Content is the full unit file text (INI sections such as [Unit],
+	// [Service], [Install]).
+	Content string `yaml:"content"`
 }
 
 // LoadBlueprint reads and parses the trisolaran.yml blueprint file.
@@ -304,6 +325,25 @@ func validateBlueprint(bp *Blueprint) error {
 			if !knownTmpfileTypes[t] {
 				return fmt.Errorf("system.tmpfiles[%d]: unknown tmpfiles type %q", i, t)
 			}
+		}
+	}
+
+	// Validate SystemdUserUnits: each unit needs a name (used as the
+	// filename, so no path separators) and non-empty content.
+	seenUnitNames := make(map[string]bool, len(bp.UserSpace.SystemdUserUnits))
+	for i, unit := range bp.UserSpace.SystemdUserUnits {
+		if unit.Name == "" {
+			return fmt.Errorf("userspace.systemd_user_units[%d].name is required", i)
+		}
+		if strings.ContainsAny(unit.Name, "/\\") {
+			return fmt.Errorf("userspace.systemd_user_units[%d].name must not contain a path separator: %q", i, unit.Name)
+		}
+		if seenUnitNames[unit.Name] {
+			return fmt.Errorf("userspace.systemd_user_units[%d]: duplicate name %q", i, unit.Name)
+		}
+		seenUnitNames[unit.Name] = true
+		if unit.Content == "" {
+			return fmt.Errorf("userspace.systemd_user_units[%d].content is required", i)
 		}
 	}
 

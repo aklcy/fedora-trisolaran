@@ -1,3 +1,6 @@
 [submodule "my-trisolaran-config"]
 	path = my-trisolaran-config
 	url = git@github.com:acker1019/my-trisolaran-config.git
+[submodule "submodules/kdeconnect-autorestart"]
+	path = submodules/kdeconnect-autorestart
+	url = git@github.com:aklcy/kdeconnect-autorestart.git

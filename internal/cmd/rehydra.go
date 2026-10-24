@@ -269,6 +269,11 @@ func runRehydra(cmd *cobra.Command, args []string) {
 			panic(err)
 		}
 	}
+	if sess.Blueprint.UserSpace.KDEConnectAutorestart {
+		if err := ops.EnsureKDEConnectAutorestart(sess.Blueprint.Identity.Username); err != nil {
+			panic(err)
+		}
+	}
 
 	restoreDehydration := func() {
 		if sess.ArtifactPath != "" {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/acker1019/fedora-trisolaran/internal/logging"
+	"github.com/acker1019/fedora-trisolaran/submodules"
 	"gopkg.in/yaml.v3"
 )
 
@@ -142,6 +143,12 @@ type UserSpaceConfig struct {
 	// as its own field (not a Pipeline script) since unit content is
 	// structured text, not a shell one-liner.
 	SystemdUserUnits []SystemdUserUnitConfig `yaml:"systemd_user_units"`
+
+	// KDEConnectAutorestart installs the kdeconnect-autorestart script and
+	// systemd --user unit compiled into tri (see submodules), which
+	// restarts kdeconnectd after unlock/resume to restore remote input on
+	// GNOME. Declarative and unconditional, like SystemdUserUnits.
+	KDEConnectAutorestart bool `yaml:"kdeconnect_autorestart"`
 
 	// Pipeline is the ordered sequence of Block IV steps, run as the
 	// target user. By default (no step in Pipeline has a Run of
@@ -345,6 +352,9 @@ func validateBlueprint(bp *Blueprint) error {
 		if unit.Content == "" {
 			return fmt.Errorf("userspace.systemd_user_units[%d].content is required", i)
 		}
+	}
+	if bp.UserSpace.KDEConnectAutorestart && seenUnitNames[submodules.KDEConnectAutorestartName] {
+		return fmt.Errorf("userspace.systemd_user_units: %q is already installed by userspace.kdeconnect_autorestart", submodules.KDEConnectAutorestartName)
 	}
 
 	return nil

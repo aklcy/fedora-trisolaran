@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,13 +27,15 @@ var packLog = logging.WithSource("artifact/pack")
 // archive as BlueprintFileName, so a future `tri rehydra <artifact>`
 // can read the blueprint straight out of the artifact.
 //
-// Paths must already be expanded to absolute form (no "~").
+// Paths and excludes must already be expanded to absolute form (no "~").
+// Anything matching an exclude (see isExcluded) is left out entirely, along
+// with everything under it.
 //
 // Returns a human-readable notice for every path worth flagging -- missing
 // entirely, missing partway up the tree, or present but empty -- so the
 // caller can report them clearly. None of these are fatal (see
 // collectPath); only a real read/copy failure aborts the pack.
-func Pack(paths []string, blueprintPath, outputPath string) ([]string, error) {
+func Pack(paths, excludes []string, blueprintPath, outputPath string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("no paths to pack")
 	}
@@ -63,7 +66,7 @@ func Pack(paths []string, blueprintPath, outputPath string) ([]string, error) {
 
 	var notices []string
 	for _, p := range paths {
-		notice, err := collectPath(p, fsRoot, manifest)
+		notice, err := collectPath(p, fsRoot, excludes, manifest)
 		if err != nil {
 			return notices, fmt.Errorf("failed to collect %s: %w", p, err)
 		}
@@ -141,8 +144,13 @@ func describeIfEmpty(src string, info os.FileInfo) string {
 // leaf or broken higher up the tree) is skipped, and a present-but-empty
 // file/directory is still collected -- both are only reported back via
 // the notice return value so the caller can warn about them.
-func collectPath(src, fsRoot string, manifest *Manifest) (notice string, err error) {
+func collectPath(src, fsRoot string, excludes []string, manifest *Manifest) (notice string, err error) {
 	src = filepath.Clean(src)
+
+	if isExcluded(src, excludes) {
+		packLog.Infof("Excluded: %s", src)
+		return "", nil
+	}
 
 	info, statErr := os.Stat(src)
 	if os.IsNotExist(statErr) {
@@ -160,6 +168,17 @@ func collectPath(src, fsRoot string, manifest *Manifest) (notice string, err err
 	}
 
 	err = filepath.Walk(src, func(walkedPath string, info os.FileInfo, err error) error {
+		// Checked before err: filepath.Walk lists a directory before calling
+		// us for it, so an excluded directory we can't read (e.g. owned by
+		// another user) arrives here with a permission error we must ignore.
+		if walkedPath != src && isExcluded(walkedPath, excludes) {
+			packLog.Infof("Excluded: %s", walkedPath)
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		if err != nil {
 			return err
 		}
@@ -231,6 +250,23 @@ func collectPath(src, fsRoot string, manifest *Manifest) (notice string, err err
 		return nil
 	})
 	return notice, err
+}
+
+// isExcluded reports whether path is covered by any exclude: an exact
+// match, anything under an excluded directory, or -- for an exclude
+// containing glob characters -- a filepath.Match on the whole path.
+func isExcluded(path string, excludes []string) bool {
+	for _, ex := range excludes {
+		if path == ex || strings.HasPrefix(path, ex+string(filepath.Separator)) {
+			return true
+		}
+		if strings.ContainsAny(ex, "*?[") {
+			if ok, _ := filepath.Match(ex, path); ok {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // lookupOwnerGroup resolves the owner/group *names* for a file, per

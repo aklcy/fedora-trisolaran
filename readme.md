@@ -115,7 +115,7 @@ Collect the paths configured under `userspace.dehydration.paths` in the blueprin
 
 - `-o, --output <path>`: Path to write the artifact (default: `trisolaran-backup.tgz`)
 
-Symlinks are recorded as links (target kept as-is, relative or not) and recreated on rehydra.
+Paths in `userspace.dehydration.paths` starting with `!` are excludes, gitignore-style: that path and everything under it is left out (a glob like `!~/workshop/dev/*/node_modules` is matched against the whole path with Go's `filepath.Match`, so `*` doesn't cross `/` and `**` isn't supported). Symlinks are recorded as links (target kept as-is, relative or not) and recreated on rehydra.
 
 **Example:**
 

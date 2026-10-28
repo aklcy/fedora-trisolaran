@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/aklcy/fedora-trisolaran/internal/artifact"
 	"github.com/aklcy/fedora-trisolaran/internal/config"
@@ -44,13 +46,24 @@ func runDehydra() {
 		panic(fmt.Sprintf("Failed to determine home directory: %v", err))
 	}
 
-	paths := make([]string, len(blueprint.UserSpace.Dehydration.Paths))
-	for i, p := range blueprint.UserSpace.Dehydration.Paths {
-		paths[i] = utils.ExpandPath(p, homeDir)
+	// A leading "!" marks an exclude, gitignore-style: that path (and
+	// everything under it) is left out even when a listed path covers it.
+	var paths, excludes []string
+	for _, p := range blueprint.UserSpace.Dehydration.Paths {
+		if ex, ok := strings.CutPrefix(p, "!"); ok {
+			excludes = append(excludes, filepath.Clean(utils.ExpandPath(ex, homeDir)))
+			continue
+		}
+		paths = append(paths, utils.ExpandPath(p, homeDir))
 	}
 
-	fmt.Printf("🍂 Dehydrating %d paths...\n", len(paths))
-	notices, err := artifact.Pack(paths, blueprintPath, dehydraOutput)
+	if len(paths) == 0 {
+		fmt.Println("❌ Error: userspace.dehydration.paths has only excludes, nothing to collect")
+		os.Exit(1)
+	}
+
+	fmt.Printf("🍂 Dehydrating %d paths (%d excluded)...\n", len(paths), len(excludes))
+	notices, err := artifact.Pack(paths, excludes, blueprintPath, dehydraOutput)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to pack artifact: %v", err))
 	}

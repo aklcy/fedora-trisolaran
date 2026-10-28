@@ -3,7 +3,7 @@
 > **Project:** Fedora Phoenix
 > **Status:** ✅ Accepted
 > **Date:** 2026-02-03
-> **Updated:** 2026-10-29 — symlink 收錄與還原（3b）
+> **Updated:** 2026-10-29 — symlink 收錄與還原（3b）、`!` 排除規則
 > **Refers to:**
 > - [ADR 0003](./adr-0003-dotfiles-management.md)
 > - [ADR 0007](./adr-0007-artifact-sync-harvesting.md)
@@ -206,6 +206,27 @@ userspace:
       - "~/Documents/"
       - "~/Videos/"  # 大檔案也要收集
 ```
+
+### 排除規則：`!` 前綴（2026-10-29 新增）
+
+> 區塊名稱在 ADR 0009 之後改為 `userspace.dehydration`。
+
+`paths` 裡以 `!` 開頭的項目代表**排除**，概念類似 `.gitignore` 的否定規則，只是方向相反：一般項目是「要收」，`!` 項目是「不收」。
+
+```yaml
+userspace:
+  dehydration:
+    paths:
+      - "~/workshop"
+      - "!~/workshop/dev/coding-agent/workspace"   # 這個目錄和底下所有東西都不收
+      - "!~/workshop/dev/*/node_modules"           # 含 glob 字元時，對整條路徑做比對
+```
+
+- 不管 `!` 項目寫在哪裡，都對**所有**一般項目生效，跟順序無關。
+- 比對對象是展開 `~` 之後的絕對路徑：
+  - 完全相同，或位在該路徑底下 → 排除。
+  - 含 `*`、`?`、`[` 時，用 Go 的 `filepath.Match` 比對整條路徑。`*` 不會跨越 `/`，也不支援 `**`。
+- 排除的判斷發生在讀取目錄**之前**，所以使用者自己讀不到的目錄（例如被別的 UID 持有）只要被排除，就不會讓打包失敗。
 
 ### system 區塊新增 users 和 groups
 

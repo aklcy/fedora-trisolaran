@@ -114,6 +114,9 @@ Collect the paths configured under `userspace.dehydration.paths` in the blueprin
 **Optional Flags:**
 
 - `-o, --output <path>`: Path to write the artifact (default: `trisolaran-backup.tgz`)
+- `--stage-dir <path>`: Where the uncompressed staging copy is built (default: the system temp dir). On Fedora `/tmp` is tmpfs, i.e. RAM -- point this at a real disk for large backups.
+
+Before copying anything, dehydra estimates the total size and checks it against at most 70% of the free space at both the staging and output locations (for tmpfs, 70% of whichever is smaller: free space or available RAM). If it won't fit, it stops with nothing copied and says which location is short.
 
 Paths in `userspace.dehydration.paths` starting with `!` are excludes, gitignore-style: that path and everything under it is left out (a glob like `!~/workshop/dev/*/node_modules` is matched against the whole path with Go's `filepath.Match`, so `*` doesn't cross `/` and `**` isn't supported). Symlinks are recorded as links (target kept as-is, relative or not) and recreated on rehydra.
 

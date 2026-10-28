@@ -31,18 +31,37 @@ var packLog = logging.WithSource("artifact/pack")
 // Anything matching an exclude (see isExcluded) is left out entirely, along
 // with everything under it.
 //
+// The uncompressed mirror is staged under stageBase (empty means the
+// system temp dir). Before anything is copied, the total size is estimated
+// and checked against the free space of both the staging and output
+// locations (see Preflight), so an oversized pack fails up front instead
+// of filling a disk -- or RAM, when stageBase is tmpfs.
+//
 // Returns a human-readable notice for every path worth flagging -- missing
 // entirely, missing partway up the tree, or present but empty -- so the
 // caller can report them clearly. None of these are fatal (see
 // collectPath); only a real read/copy failure aborts the pack.
-func Pack(paths, excludes []string, blueprintPath, outputPath string) ([]string, error) {
+func Pack(paths, excludes []string, blueprintPath, outputPath, stageBase string) ([]string, error) {
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("no paths to pack")
 	}
 
+	if stageBase == "" {
+		stageBase = os.TempDir()
+	}
+
+	estimate, files, err := Estimate(paths, excludes)
+	if err != nil {
+		return nil, err
+	}
+	packLog.Infof("Estimated %s across %d files, staging under %s", humanBytes(estimate), files, stageBase)
+	if err := Preflight(estimate, stageBase, outputPath); err != nil {
+		return nil, fmt.Errorf("not enough space, nothing was copied: %w", err)
+	}
+
 	packLog.Infof("Packing %d paths into %s", len(paths), outputPath)
 
-	stageDir, err := os.MkdirTemp("", "trisolaran-pack-*")
+	stageDir, err := os.MkdirTemp(stageBase, "trisolaran-pack-*")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create staging directory: %w", err)
 	}

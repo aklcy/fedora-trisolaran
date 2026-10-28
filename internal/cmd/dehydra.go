@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var dehydraOutput string
+var (
+	dehydraOutput   string
+	dehydraStageDir string
+)
 
 // dehydraCmd represents the dehydra command
 var dehydraCmd = &cobra.Command{
@@ -28,6 +31,7 @@ var dehydraCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(dehydraCmd)
 	dehydraCmd.Flags().StringVarP(&dehydraOutput, "output", "o", "trisolaran-backup.tgz", "Path to write the artifact")
+	dehydraCmd.Flags().StringVar(&dehydraStageDir, "stage-dir", "", "Directory for the uncompressed staging copy (default: system temp dir; on Fedora /tmp is tmpfs, i.e. RAM)")
 }
 
 func runDehydra() {
@@ -63,7 +67,7 @@ func runDehydra() {
 	}
 
 	fmt.Printf("🍂 Dehydrating %d paths (%d excluded)...\n", len(paths), len(excludes))
-	notices, err := artifact.Pack(paths, excludes, blueprintPath, dehydraOutput)
+	notices, err := artifact.Pack(paths, excludes, blueprintPath, dehydraOutput, dehydraStageDir)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to pack artifact: %v", err))
 	}

@@ -3,7 +3,7 @@
 > **Project:** Fedora Phoenix
 > **Status:** ✅ Accepted
 > **Date:** 2026-02-03
-> **Updated:** 2026-10-29 — symlink 收錄與還原（3b）、`!` 排除規則
+> **Updated:** 2026-10-29 — symlink 收錄與還原（3b）、`!` 排除規則、打包前空間檢查與暫存位置（Implementation Notes）
 > **Refers to:**
 > - [ADR 0003](./adr-0003-dotfiles-management.md)
 > - [ADR 0007](./adr-0007-artifact-sync-harvesting.md)
@@ -289,10 +289,24 @@ system:
 ### Harvest 流程
 
 1. 讀取 `phoenix.yml` 的 `userspace.harvest` 設定
-2. 掃描所有 `paths` 路徑（包含大檔案）
-3. 複製檔案到 `fs/` 目錄（保持原始路徑結構）
-4. 記錄每個檔案的 Metadata 到 `filemeta.yml`
-5. 打包成 `phoenix-backup-<YYYYMMDD>.tgz`
+2. 掃描所有 `paths` 路徑（包含大檔案），套用 `!` 排除規則
+3. **估算與空間檢查**（見下方）——不夠就在複製任何東西之前停下來
+4. 複製檔案到暫存區的 `fs/` 目錄（保持原始路徑結構）；symlink 只記 metadata
+5. 記錄每個項目的 Metadata 到 `filemeta.yml`
+6. 打包成 `phoenix-backup-<YYYYMMDD>.tgz`，刪除暫存區
+
+### 暫存位置與打包前空間檢查（2026-10-29 新增）
+
+**背景**：打包會先在暫存區做一份**完整、未壓縮**的鏡像，再壓成 tgz。暫存區原本固定在系統暫存目錄，而 Fedora 的 `/tmp` 是 tmpfs，資料直接放在 RAM 裡。2026-10-29 一次約 21 GB 的 dehydra 把 RAM 吃光，OOM killer 殺掉了 gnome-shell，使用者被強制登出；暫存還殘留在 `/tmp`，繼續佔著記憶體。
+
+**決策**：
+
+- 暫存位置可以用 `--stage-dir` 指定；預設仍是系統暫存目錄。大型備份應該指到實體磁碟。
+- 開始複製前，用和打包**完全相同**的走訪規則（排除、不跟進 symlink、略過不存在的路徑），算出所有一般檔案的總大小。
+- 用最壞情況估算：資料完全壓縮不了時，暫存區和輸出位置各需要一整份的空間；兩者在同一個檔案系統上就需要兩份。
+- 每個位置最多只能規劃用到**可用空間的 70%**，剩下的 30% 留給系統上其他程式，也吸收 tar header、filemeta.yml 和估算誤差。
+- 暫存位置是 tmpfs 時，「可用空間」取剩餘空間和 `MemAvailable` 中較小的那個，因為寫進 tmpfs 的每一頁都是 RAM。
+- 檢查不通過時：什麼都不複製，直接回報是哪個位置不夠、差多少，並建議改用 `--stage-dir`。
 
 ### Provision 流程
 

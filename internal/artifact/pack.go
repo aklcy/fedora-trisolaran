@@ -171,6 +171,25 @@ func collectPath(src, fsRoot string, manifest *Manifest) (notice string, err err
 		}
 		mode := fmt.Sprintf("%04o", info.Mode().Perm())
 
+		// Walk reports symlinks via Lstat and never follows them, so the
+		// link itself is recorded -- dangling targets included.
+		if info.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(walkedPath)
+			if err != nil {
+				return fmt.Errorf("failed to read symlink %s: %w", walkedPath, err)
+			}
+			manifest.Entries = append(manifest.Entries, FileMeta{
+				Path:    walkedPath,
+				Mode:    mode,
+				Owner:   owner,
+				Group:   group,
+				Type:    "symlink",
+				Target:  target,
+				ModTime: info.ModTime().UTC().Format(time.RFC3339),
+			})
+			return nil
+		}
+
 		if info.IsDir() {
 			if err := os.MkdirAll(mirrorPath, info.Mode().Perm()); err != nil {
 				return fmt.Errorf("failed to create mirror directory: %w", err)
@@ -185,7 +204,7 @@ func collectPath(src, fsRoot string, manifest *Manifest) (notice string, err err
 			return nil
 		}
 
-		// Symlinks and other special files are skipped; only regular files are mirrored.
+		// Sockets, FIFOs and devices are skipped; only regular files are mirrored.
 		if !info.Mode().IsRegular() {
 			packLog.Warnf("Skipping non-regular file: %s", walkedPath)
 			return nil

@@ -115,6 +115,8 @@ Collect the paths configured under `userspace.dehydration.paths` in the blueprin
 
 - `-o, --output <path>`: Path to write the artifact (default: `trisolaran-backup.tgz`)
 
+Symlinks are recorded as links (target kept as-is, relative or not) and recreated on rehydra.
+
 **Example:**
 
 ```bash

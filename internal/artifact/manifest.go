@@ -23,7 +23,12 @@ type FileMeta struct {
 	Owner  string `yaml:"owner"`
 	Group  string `yaml:"group"`
 	SHA256 string `yaml:"sha256,omitempty"`
-	Type   string `yaml:"type,omitempty"` // "directory", or empty for a regular file
+	Type   string `yaml:"type,omitempty"` // "directory", "symlink", or empty for a regular file
+
+	// Target is a symlink's destination exactly as read by readlink
+	// (relative targets stay relative). Symlinks carry no content under
+	// fs/ -- this field alone is enough to recreate them.
+	Target string `yaml:"target,omitempty"`
 
 	// ModTime is the source file's modification time (RFC3339), recorded
 	// so Restore can compare it against a same-path file already on disk

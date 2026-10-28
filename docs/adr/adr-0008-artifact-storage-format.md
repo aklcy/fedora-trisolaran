@@ -3,6 +3,7 @@
 > **Project:** Fedora Phoenix
 > **Status:** ✅ Accepted
 > **Date:** 2026-02-03
+> **Updated:** 2026-10-29 — symlink 收錄與還原（3b）
 > **Refers to:**
 > - [ADR 0003](./adr-0003-dotfiles-management.md)
 > - [ADR 0007](./adr-0007-artifact-sync-harvesting.md)
@@ -99,6 +100,13 @@ entries:
     owner: "user"
     group: "user"
     type: "directory"
+
+  - path: "/home/user/project/CLAUDE.md"
+    mode: "0777"
+    owner: "user"
+    group: "user"
+    type: "symlink"
+    target: "AGENTS.md"
 ```
 
 #### 欄位說明
@@ -109,8 +117,10 @@ entries:
 | `mode` | string | 八進位權限 (e.g., "0644", "0755") |
 | `owner` | string | 擁有者名稱（**不記錄 UID**） |
 | `group` | string | 群組名稱（**不記錄 GID**） |
-| `sha256` | string | 檔案內容雜湊（用於驗證完整性） |
-| `type` | string | 可選，標示 "directory" 或 "file"（預設 file） |
+| `sha256` | string | 檔案內容雜湊（用於驗證完整性），只有一般檔案有 |
+| `type` | string | 可選，`"directory"` 或 `"symlink"`；省略代表一般檔案 |
+| `target` | string | 只有 symlink 有：`readlink` 讀到的原始目標（見 3b） |
+| `mod_time` | string | 可選，RFC3339 修改時間；還原時用來和磁碟上同路徑的檔案比新舊 |
 
 **重要**：
 - 只記錄 owner/group **名稱**，不記錄 UID/GID
@@ -126,6 +136,26 @@ entries:
 **目的**：讓單一 artifact tgz 具備「自我描述」能力——還原時若沒有明確指定要用哪份 blueprint，可以直接從 archive 裡讀出這份內建版本，不需要事先另外準備一份 blueprint 檔案。固定的檔案位置本身就是協議的一部分，讀取時不需要預先知道 blueprint 的內容才能找到它。
 
 **優先順序**：明確指定的 blueprint 來源永遠優先於 artifact 內建版本；內建版本只在沒有明確指定時才會被採用。
+
+---
+
+### 3b. Symlink：只記連結，不跟進目標
+
+**背景**：最早的版本只收一般檔案，symlink 會被略過。結果像 `CLAUDE.md -> AGENTS.md` 這種專案慣用的連結，還原後就消失了；而且不會有人注意到少了它。
+
+**決策**：
+
+- 打包時**不跟進** symlink，只記錄連結本身：`type: "symlink"`，`target` 存 `readlink` 讀到的原始字串。
+  - 相對路徑維持相對，絕對路徑維持絕對，不做任何改寫。
+  - 指向不存在目標的 dangling link 照樣收錄。
+- symlink 在 `fs/` 底下**沒有對應內容**，filemeta.yml 的這一筆就足以重建它。
+- `mode` 照實記錄，但還原時不套用：Linux 會忽略 symlink 的權限位元。
+- 還原時：
+  - 該路徑沒有東西：建立 symlink，再用 `lchown` 設定擁有者（不能用 `chown`，否則會改到目標）。
+  - 已經有同一個 target 的 symlink：只更新擁有者。
+  - 已經有其他東西（不同 target 的 symlink、一般檔案或目錄）：**保留磁碟上的現況**，在 notices 裡回報。不覆蓋，因為覆蓋可能默默吃掉真正的內容。這和一般檔案「保留較新者」的精神一致。
+
+Socket、FIFO、裝置檔等其他特殊檔案仍然略過。
 
 ---
 
@@ -247,6 +277,6 @@ system:
 
 1. 解壓 Artifact
 2. 讀取 `filemeta.yml`
-3. 從 `fs/` 複製檔案到系統對應位置
-4. 根據 filemeta.yml 設定正確的 owner, group, mode
+3. 從 `fs/` 複製檔案到系統對應位置；symlink 依 `target` 重建（見 3b）
+4. 根據 filemeta.yml 設定正確的 owner, group, mode（symlink 只設 owner/group，用 `lchown`）
 5. 驗證 SHA256 確保完整性

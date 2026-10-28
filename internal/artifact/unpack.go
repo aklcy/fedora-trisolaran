@@ -117,6 +117,10 @@ func findArtifactRoot(stageDir string) (string, error) {
 // the on-disk version instead (see shouldKeepLocal) -- in which case
 // nothing about that entry is touched, and why is reported via notice.
 func applyEntry(entry FileMeta, fsRoot string, trustTimestamps bool) (notice string, err error) {
+	if entry.Type == "symlink" {
+		return applySymlink(entry)
+	}
+
 	mode, err := parseMode(entry.Mode)
 	if err != nil {
 		return "", err
@@ -158,6 +162,38 @@ func applyEntry(entry FileMeta, fsRoot string, trustTimestamps bool) (notice str
 	}
 	if err := os.Chown(entry.Path, uid, gid); err != nil {
 		return "", fmt.Errorf("failed to chown: %w", err)
+	}
+
+	return "", nil
+}
+
+// applySymlink recreates a symlink entry. A link already pointing at the
+// same target only gets its ownership refreshed; anything else already at
+// that path is kept as-is and reported, same as a kept regular file --
+// replacing it could silently drop real content. Mode is not applied:
+// Linux ignores permission bits on symlinks.
+func applySymlink(entry FileMeta) (notice string, err error) {
+	if existing, err := os.Readlink(entry.Path); err == nil {
+		if existing != entry.Target {
+			return fmt.Sprintf("kept on-disk symlink (points to %s, artifact has %s): %s", existing, entry.Target, entry.Path), nil
+		}
+	} else if _, err := os.Lstat(entry.Path); err == nil {
+		return fmt.Sprintf("kept on-disk path instead of restoring symlink to %s: %s", entry.Target, entry.Path), nil
+	} else {
+		if err := os.MkdirAll(filepath.Dir(entry.Path), 0755); err != nil {
+			return "", fmt.Errorf("failed to create parent directory: %w", err)
+		}
+		if err := os.Symlink(entry.Target, entry.Path); err != nil {
+			return "", fmt.Errorf("failed to create symlink: %w", err)
+		}
+	}
+
+	uid, gid, err := lookupUIDGID(entry.Owner, entry.Group)
+	if err != nil {
+		return "", err
+	}
+	if err := os.Lchown(entry.Path, uid, gid); err != nil {
+		return "", fmt.Errorf("failed to lchown: %w", err)
 	}
 
 	return "", nil

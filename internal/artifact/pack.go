@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/acker1019/fedora-trisolaran/internal/logging"
+	"github.com/aklcy/fedora-trisolaran/internal/logging"
 )
 
 var packLog = logging.WithSource("artifact/pack")

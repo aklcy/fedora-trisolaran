@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/acker1019/fedora-trisolaran/internal/logging"
-	"github.com/acker1019/fedora-trisolaran/submodules"
+	"github.com/aklcy/fedora-trisolaran/internal/logging"
+	"github.com/aklcy/fedora-trisolaran/submodules"
 	"gopkg.in/yaml.v3"
 )
 

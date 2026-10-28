@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/acker1019/fedora-trisolaran/internal/artifact"
-	"github.com/acker1019/fedora-trisolaran/internal/config"
-	"github.com/acker1019/fedora-trisolaran/internal/utils"
+	"github.com/aklcy/fedora-trisolaran/internal/artifact"
+	"github.com/aklcy/fedora-trisolaran/internal/config"
+	"github.com/aklcy/fedora-trisolaran/internal/utils"
 
 	"github.com/spf13/cobra"
 )

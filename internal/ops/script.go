@@ -3,8 +3,8 @@ package ops
 import (
 	"fmt"
 
-	"github.com/acker1019/fedora-trisolaran/internal/logging"
-	"github.com/acker1019/fedora-trisolaran/internal/utils"
+	"github.com/aklcy/fedora-trisolaran/internal/logging"
+	"github.com/aklcy/fedora-trisolaran/internal/utils"
 )
 
 var scriptLog = logging.WithSource("ops/script")

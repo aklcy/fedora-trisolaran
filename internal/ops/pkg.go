@@ -7,8 +7,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/acker1019/fedora-trisolaran/internal/config"
-	"github.com/acker1019/fedora-trisolaran/internal/logging"
+	"github.com/aklcy/fedora-trisolaran/internal/config"
+	"github.com/aklcy/fedora-trisolaran/internal/logging"
 )
 
 var pkgLog = logging.WithSource("ops/pkg")

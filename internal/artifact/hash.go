@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/acker1019/fedora-trisolaran/internal/logging"
+	"github.com/aklcy/fedora-trisolaran/internal/logging"
 )
 
 var hashLog = logging.WithSource("artifact/hash")

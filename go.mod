@@ -1,4 +1,4 @@
-module github.com/acker1019/fedora-trisolaran
+module github.com/aklcy/fedora-trisolaran
 
 go 1.24.0
 
